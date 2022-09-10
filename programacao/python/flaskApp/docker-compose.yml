@@ -1,4 +1,25 @@
 version: "3.8"
+
+x-common:
+  &common
+  image: apache/airflow:2.3.0
+  user: "${AIRFLOW_UID}:0"
+  env_file: 
+    - .env
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - /var/run/docker.sock:/var/run/docker.sock
+
+x-depends-on:
+  &depends-on
+  depends_on:
+    db:
+      condition: service_healthy
+    airflow-init:
+      condition: service_completed_successfully
+
 services:
   app:
     container_name: app
@@ -21,15 +42,19 @@ services:
     image: postgres
     container_name: db_flask
     hostname: db_flask
-    environment:
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=root
-      - POSTGRES_DB=valeEY
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "root"]
+      interval: 5s
+      retries: 5
+    env_file: 
+      - .env
     ports:
       - '5432:5432'
     volumes:
       - ./postgres/db:/docker-entrypoint-initdb.d/
       - ./postgres/data:/var/lib/postgresql/data
+
+
   nginx:
     restart: always
     container_name: nginx
@@ -84,34 +109,38 @@ services:
       KAFKA_BROKERCONNECT: kafka:29092
 
   scheduler:
-    image: apache/airflow
+    <<: *common
+    <<: *depends-on
+    container_name: airflow-scheduler
+    command: scheduler
     restart: on-failure
-    depends_on:
-      - db
-    env_file:
-      - .env
-    volumes:
-    - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/logs:/opt/airflow/logs
+    ports:
+      - "8793:8793"
 
   webserver:
-    image: apache/airflow
-    entrypoint: ./scripts/entrypoint.sh
-    restart: on-failure
-    depends_on:
-      - db
-      - scheduler
-    env_file:
-      - .env
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/scripts:/opt/airflow/scripts
+    <<: *common
+    <<: *depends-on
+    container_name: airflow-webserver
+    restart: always
+    command: webserver
     ports:
       - "8080:8080"
-
-
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
   
+  airflow-init:
+    <<: *common
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /sources/logs /sources/dags /sources/plugins
+        chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
+        exec /entrypoint airflow version
 
 networks: 
   broker-kafka:
