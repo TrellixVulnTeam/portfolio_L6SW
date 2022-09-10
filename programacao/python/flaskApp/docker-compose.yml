@@ -46,15 +46,17 @@ services:
       - app
 
   zookeeper:
-      image: confluentinc/cp-zookeeper:latest
-      networks: 
-        - broker-kafka
-      environment:
-        ZOOKEEPER_CLIENT_PORT: 2181
-        ZOOKEEPER_TICK_TIME: 2000
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    networks: 
+      - broker-kafka
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: kafka
     networks: 
       - broker-kafka
     depends_on:
@@ -71,6 +73,7 @@ services:
 
   kafdrop:
     image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
     networks: 
       - broker-kafka
     depends_on:
@@ -79,6 +82,35 @@ services:
       - 19000:9000
     environment:
       KAFKA_BROKERCONNECT: kafka:29092
+
+  scheduler:
+    image: apache/airflow
+    restart: on-failure
+    depends_on:
+      - db
+    env_file:
+      - .env
+    volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+
+  webserver:
+    image: apache/airflow
+    container_name: airflow_webserver
+    entrypoint: ./scripts/entrypoint.sh
+    restart: on-failure
+    depends_on:
+      - db
+      - scheduler
+    env_file:
+      - .env
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/scripts:/opt/airflow/scripts
+    ports:
+      - "8080:8080"
+
 
   
 
