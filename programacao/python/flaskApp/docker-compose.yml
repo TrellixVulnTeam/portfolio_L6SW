@@ -21,6 +21,8 @@ x-depends-on:
       condition: service_completed_successfully
 
 services:
+
+
   app:
     container_name: app
     hostname: app
@@ -38,12 +40,15 @@ services:
       - db
     volumes:
       - ./app:/app/
+
+
+
   db:
     image: postgres
     container_name: db_flask
     hostname: db_flask
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "root"]
+      test: ["CMD", "pg_isready", "-U", "valeEY"]
       interval: 5s
       retries: 5
     env_file: 
@@ -53,6 +58,7 @@ services:
     volumes:
       - ./postgres/db:/docker-entrypoint-initdb.d/
       - ./postgres/data:/var/lib/postgresql/data
+      - ./postgres/logs:/logs
 
 
   nginx:
@@ -64,7 +70,8 @@ services:
     hostname: nginx
     build: ./nginx/
     volumes:
-      - ./nginx/sites-enabled:/usr/share/nginx/html/
+    - ./nginx/config:/usr/share/nginx/html/
+    - ./nginx/html:/etc/nginx/html/
     ports:
       - "81:81"
     links:
@@ -78,6 +85,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+
+
 
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -96,6 +105,8 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
+
+
   kafdrop:
     image: obsidiandynamics/kafdrop:latest
     container_name: kafdrop
@@ -108,6 +119,8 @@ services:
     environment:
       KAFKA_BROKERCONNECT: kafka:29092
 
+
+
   scheduler:
     <<: *common
     <<: *depends-on
@@ -116,6 +129,8 @@ services:
     restart: on-failure
     ports:
       - "8793:8793"
+
+
 
   webserver:
     <<: *common
@@ -130,6 +145,8 @@ services:
       interval: 30s
       timeout: 30s
       retries: 5
+
+
   
   airflow-init:
     <<: *common
@@ -142,6 +159,24 @@ services:
         chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
         exec /entrypoint airflow version
 
+                                                           
+
+  mlflow:
+    container_name: mlflow_server
+    hostname: mlflow_server
+    restart: unless-stopped
+    build: 
+      context: mlflow
+    depends_on:
+      - db
+    expose:
+      - "5001"
+    env_file: 
+      - .env
+    volumes:
+    - ./mlflow:/mlflow/
+  
+
 networks: 
   broker-kafka:
-    driver: bridge  
+    driver: bridge   
