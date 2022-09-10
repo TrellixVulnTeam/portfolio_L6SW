@@ -96,7 +96,6 @@ services:
 
   webserver:
     image: apache/airflow
-    container_name: airflow_webserver
     entrypoint: ./scripts/entrypoint.sh
     restart: on-failure
     depends_on:
