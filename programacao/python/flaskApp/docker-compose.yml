@@ -76,6 +76,9 @@ services:
       - "81:81"
     links:
       - app
+      - webserver
+      - mlflow
+      - kafdrop
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -167,14 +170,17 @@ services:
     restart: unless-stopped
     build: 
       context: mlflow
+    links:
+      - db
     depends_on:
       - db
-    expose:
-      - "5001"
+    ports:
+      - "5000:5000"
     env_file: 
       - .env
     volumes:
     - ./mlflow:/mlflow/
+    command: mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./artefato --host 0.0.0.0 
   
 
 networks: 
